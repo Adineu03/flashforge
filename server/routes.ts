@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { cardEngine } from "./services/cardEngine";
-import { documentParser } from "./services/documentParser";
+import { documentParser } from "./services/simpleDocumentParser";
 import { upload } from "./middleware/fileUpload";
 import { 
   insertDeckSchema, 
