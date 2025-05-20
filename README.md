@@ -81,7 +81,3 @@ The application will be available at http://localhost:5000
 - `POST /api/reviews`: Submit a review for a card
 - `POST /api/generate-cards`: Generate cards using AI
 - `POST /api/upload-document`: Upload a document for processing
-
-## License
-
-MIT
