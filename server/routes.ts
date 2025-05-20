@@ -1,7 +1,9 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { cardEngine } from "./services/cardEngine";
+import { documentParser } from "./services/documentParser";
+import { upload } from "./middleware/fileUpload";
 import { 
   insertDeckSchema, 
   insertCardSchema, 
@@ -160,6 +162,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         count: savedCards.length,
         cards: savedCards
+      });
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+  
+  // Document Upload Route for Card Generation
+  app.post("/api/upload-document", upload.single('document'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      
+      const filePath = req.file.path;
+      const deckIdParam = req.body.deckId;
+      const countParam = req.body.count || 10;
+      const includeImagesParam = req.body.includeImages === 'true';
+      const increaseDifficultyParam = req.body.increaseDifficulty === 'true';
+      
+      // Check if deckId is valid
+      const deckId = parseInt(deckIdParam);
+      if (isNaN(deckId)) {
+        await documentParser.cleanupFile(filePath);
+        return res.status(400).json({ message: "Invalid deck ID" });
+      }
+      
+      // Check if deck exists
+      const deck = await storage.getDeck(deckId);
+      if (!deck) {
+        await documentParser.cleanupFile(filePath);
+        return res.status(404).json({ message: "Deck not found" });
+      }
+      
+      // Parse document and extract content
+      const content = await documentParser.parseDocument(filePath);
+      
+      // Delete the temp file after extracting content
+      await documentParser.cleanupFile(filePath);
+      
+      if (!content || content.trim().length === 0) {
+        return res.status(400).json({ message: "No content could be extracted from the document" });
+      }
+      
+      // Generate cards with AI using the extracted content
+      const cardData = await cardEngine.generateCards(
+        deckId,
+        content,
+        parseInt(countParam),
+        {
+          includeImages: includeImagesParam,
+          increaseDifficulty: increaseDifficultyParam
+        }
+      );
+      
+      // Save generated cards
+      const savedCards = [];
+      for (const card of cardData) {
+        const savedCard = await storage.createCard(card);
+        savedCards.push(savedCard);
+      }
+      
+      res.status(201).json({
+        success: true,
+        count: savedCards.length,
+        cards: savedCards,
+        fileName: req.file.originalname
       });
     } catch (err) {
       handleError(err, res);

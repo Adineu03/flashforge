@@ -26,7 +26,16 @@ import {
 import {
   Card,
   CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,7 +43,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, Upload, FileText, File } from "lucide-react";
 
 import type { Deck, GenerateCardsRequest } from "@shared/schema";
 
@@ -56,6 +65,9 @@ export default function CreatePage() {
   const queryClient = useQueryClient();
   const [showNewDeckForm, setShowNewDeckForm] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [inputMethod, setInputMethod] = useState<"text" | "file">("text");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch decks
   const { data: decks, isLoading: isLoadingDecks } = useQuery<Deck[]>({
@@ -97,6 +109,41 @@ export default function CreatePage() {
     },
   });
 
+  // Upload document mutation
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch("/api/upload-document", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to upload document");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+      setSuccessMessage(`Successfully generated ${data.count} flashcards from ${data.fileName}!`);
+      setUploadedFile(null);
+      
+      // Show success message and redirect after delay
+      setTimeout(() => {
+        navigate("/");
+      }, 3000);
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error processing document",
+        description: error.message,
+      });
+    },
+    onSettled: () => {
+      setIsUploading(false);
+    }
+  });
+
   // Initialize form with default values
   const form = useForm<CreateFormValues>({
     resolver: zodResolver(createFormSchema),
@@ -134,13 +181,54 @@ export default function CreatePage() {
     }
   };
 
+  // Handle file upload
+  const handleFileUpload = async (selectedDeckId: string) => {
+    if (!uploadedFile) {
+      toast({
+        variant: "destructive",
+        title: "No file selected",
+        description: "Please select a file to upload",
+      });
+      return;
+    }
+
+    try {
+      let deckId = parseInt(selectedDeckId);
+
+      // If creating a new deck, create it first
+      if (selectedDeckId === "new" && form.getValues("newDeckName")) {
+        const newDeck = await createDeckMutation.mutateAsync(form.getValues("newDeckName"));
+        deckId = newDeck.id;
+      }
+
+      const formData = new FormData();
+      formData.append('document', uploadedFile);
+      formData.append('deckId', deckId.toString());
+      formData.append('count', form.getValues("count").toString());
+      formData.append('includeImages', form.getValues("includeImages").toString());
+      formData.append('increaseDifficulty', form.getValues("increaseDifficulty").toString());
+
+      setIsUploading(true);
+      await uploadDocumentMutation.mutateAsync(formData);
+    } catch (error) {
+      console.error("File upload error:", error);
+      setIsUploading(false);
+    }
+  };
+
+  // Handle file selection
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    setUploadedFile(file);
+  };
+
   // Handle deck selection changes
   const handleDeckChange = (value: string) => {
     form.setValue("deckId", value);
     setShowNewDeckForm(value === "new");
   };
 
-  const isSubmitting = generateCardsMutation.isPending || createDeckMutation.isPending;
+  const isSubmitting = generateCardsMutation.isPending || createDeckMutation.isPending || isUploading;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
