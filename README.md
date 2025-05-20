@@ -16,14 +16,14 @@ FlashForge is an AI-powered flashcard creation system that uses LangChain and Op
 
 - **Frontend**: React, TailwindCSS, Shadcn UI components
 - **Backend**: Node.js, Express
-- **Database**: PostgreSQL
+- **Database**: MongoDB
 - **AI**: LangChain + OpenAI GPT-4o 
 - **Package Manager**: npm
 
 ## Prerequisites
 
 - Node.js (v18+)
-- PostgreSQL database
+- MongoDB (local or MongoDB Atlas)
 - OpenAI API key
 
 ## Installation
@@ -42,14 +42,13 @@ npm install
 3. Set up environment variables:
 Create a `.env` file in the root directory with the following content:
 ```
-DATABASE_URL=postgresql://username:password@localhost:5432/flashforge
+MONGODB_URI=mongodb://localhost:27017/flashforge
 OPENAI_API_KEY=your_openai_api_key
 ```
 
-4. Initialize the database:
-```bash
-npm run db:push
-```
+4. Start MongoDB:
+   - If using local MongoDB, make sure your MongoDB service is running
+   - If using MongoDB Atlas, ensure you have the correct connection string with username and password
 
 5. Start the application:
 ```bash

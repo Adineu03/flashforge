@@ -53,25 +53,19 @@ After creating the repository, GitHub will show you commands to push your existi
    npm install
    ```
 
-3. Set up PostgreSQL:
-   - Install PostgreSQL if you don't have it already
-   - Create a new database named `flashforge`:
-     ```sql
-     CREATE DATABASE flashforge;
-     ```
-   - Create a user or use an existing one
+3. Set up MongoDB:
+   - Install MongoDB locally if you don't have it already
+   - Or create a free MongoDB Atlas account at https://www.mongodb.com/cloud/atlas
+   - Create a new database named `flashforge`
 
-4. Create a `.env` file in the root directory with your database connection details and OpenAI API key:
+4. Create a `.env` file in the root directory with your MongoDB connection string and OpenAI API key:
    ```
-   DATABASE_URL=postgresql://username:password@localhost:5432/flashforge
+   MONGODB_URI=mongodb://localhost:27017/flashforge
    OPENAI_API_KEY=your_openai_api_key
    ```
-   (Replace `username`, `password`, and `your_openai_api_key` with your actual credentials)
-
-5. Apply database migrations:
-   ```bash
-   npm run db:push
-   ```
+   - For local MongoDB: use `mongodb://localhost:27017/flashforge`
+   - For MongoDB Atlas: use the connection string provided by MongoDB Atlas, typically in this format: `mongodb+srv://<username>:<password>@<cluster-url>/flashforge?retryWrites=true&w=majority`
+   - Replace `your_openai_api_key` with your actual OpenAI API key
 
 6. Start the development server:
    ```bash
