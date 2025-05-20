@@ -196,9 +196,19 @@ export default function CreatePage() {
       let deckId = parseInt(selectedDeckId);
 
       // If creating a new deck, create it first
-      if (selectedDeckId === "new" && form.getValues("newDeckName")) {
-        const newDeck = await createDeckMutation.mutateAsync(form.getValues("newDeckName"));
-        deckId = newDeck.id;
+      if (selectedDeckId === "new") {
+        const newDeckName = form.getValues("newDeckName") || "";
+        if (newDeckName.trim()) {
+          const newDeck = await createDeckMutation.mutateAsync(newDeckName);
+          deckId = newDeck.id;
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Deck name required",
+            description: "Please enter a name for your new deck",
+          });
+          return;
+        }
       }
 
       const formData = new FormData();
@@ -240,162 +250,320 @@ export default function CreatePage() {
       </div>
 
       <Card>
+        <CardHeader>
+          <CardTitle>Generate Flashcards</CardTitle>
+          <CardDescription>
+            Choose how you want to provide content for flashcard generation
+          </CardDescription>
+        </CardHeader>
         <CardContent className="p-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="deckId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Choose a Deck</FormLabel>
-                    <Select onValueChange={handleDeckChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a deck" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {decks?.map((deck) => (
-                          <SelectItem key={deck.id} value={deck.id.toString()}>
-                            {deck.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="new">+ Create New Deck</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <Tabs 
+            defaultValue="text" 
+            className="mb-6"
+            onValueChange={(value) => setInputMethod(value as "text" | "file")}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="text">
+                <FileText className="h-4 w-4 mr-2" />
+                Text Input
+              </TabsTrigger>
+              <TabsTrigger value="file">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Document
+              </TabsTrigger>
+            </TabsList>
 
-              {showNewDeckForm && (
-                <FormField
-                  control={form.control}
-                  name="newDeckName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Deck Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. CSS Flexbox" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+            <TabsContent value="text">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="deckId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Choose a Deck</FormLabel>
+                        <Select onValueChange={handleDeckChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a deck" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {decks?.map((deck) => (
+                              <SelectItem key={deck.id} value={deck.id.toString()}>
+                                {deck.name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="new">+ Create New Deck</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {showNewDeckForm && (
+                    <FormField
+                      control={form.control}
+                      name="newDeckName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Deck Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. CSS Flexbox" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
-              )}
 
-              <FormField
-                control={form.control}
-                name="content"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Content to Generate Cards From</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Paste text, URLs, or upload files containing content you want to convert into flashcards..."
-                        className="min-h-[200px] resize-y"
-                        {...field}
+                  <FormField
+                    control={form.control}
+                    name="content"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Content to Generate Cards From</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Paste text containing content you want to convert into flashcards..."
+                            className="min-h-[200px] resize-y"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Add content that you want to learn. AI will analyze this and create relevant flashcards.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="count"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Number of Cards to Generate</FormLabel>
+                        <div className="flex items-center space-x-4">
+                          <FormControl>
+                            <Slider
+                              min={5}
+                              max={30}
+                              step={5}
+                              value={[field.value]}
+                              onValueChange={(value) => field.onChange(value[0])}
+                            />
+                          </FormControl>
+                          <span className="text-sm text-gray-700 dark:text-gray-300 w-8">
+                            {field.value}
+                          </span>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Advanced Options</h3>
+                    <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="includeImages"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between space-x-2">
+                            <FormLabel>Generate image hints when possible</FormLabel>
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormDescription>
-                      Add content that you want to learn. AI will analyze this and create relevant flashcards.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
-              <FormField
-                control={form.control}
-                name="count"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Number of Cards to Generate</FormLabel>
-                    <div className="flex items-center space-x-4">
-                      <FormControl>
-                        <Slider
-                          min={5}
-                          max={30}
-                          step={5}
-                          value={[field.value]}
-                          onValueChange={(value) => field.onChange(value[0])}
-                        />
-                      </FormControl>
-                      <span className="text-sm text-gray-700 dark:text-gray-300 w-8">
-                        {field.value}
-                      </span>
+                      <FormField
+                        control={form.control}
+                        name="increaseDifficulty"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center justify-between space-x-2">
+                            <FormLabel>Increase difficulty level</FormLabel>
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <FormMessage />
-                  </FormItem>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Generate Flashcards
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => navigate("/")}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </TabsContent>
+
+            <TabsContent value="file">
+              <div className="space-y-6">
+                <div>
+                  <FormLabel className="block mb-2">Choose a Deck</FormLabel>
+                  <Select onValueChange={handleDeckChange} defaultValue={form.getValues("deckId")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a deck" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {decks?.map((deck) => (
+                        <SelectItem key={deck.id} value={deck.id.toString()}>
+                          {deck.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new">+ Create New Deck</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {showNewDeckForm && (
+                  <div>
+                    <FormLabel className="block mb-2">New Deck Name</FormLabel>
+                    <Input 
+                      placeholder="e.g. CSS Flexbox" 
+                      value={form.getValues("newDeckName")}
+                      onChange={(e) => form.setValue("newDeckName", e.target.value)}
+                    />
+                  </div>
                 )}
-              />
 
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Advanced Options</h3>
-                <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="includeImages"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between space-x-2">
-                        <FormLabel>Generate image hints when possible</FormLabel>
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                <div>
+                  <FormLabel className="block mb-2">Upload Document</FormLabel>
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      {uploadedFile ? (
+                        <div className="text-center space-y-2">
+                          <File className="h-10 w-10 text-primary mx-auto" />
+                          <p className="text-sm font-medium">{uploadedFile.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {(uploadedFile.size / 1024).toFixed(2)} KB
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setUploadedFile(null)}
+                          >
+                            Change file
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-10 w-10 text-gray-500 dark:text-gray-400" />
+                          <p className="text-sm font-medium">Click to upload or drag and drop</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Supports: .txt, .docx, .pdf, .pptx (max 10MB)
+                          </p>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        accept=".txt,.docx,.pdf,.pptx" 
+                        className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${uploadedFile ? 'hidden' : ''}`}
+                        onChange={handleFileChange}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-                  <FormField
-                    control={form.control}
-                    name="increaseDifficulty"
-                    render={({ field }) => (
-                      <FormItem className="flex items-center justify-between space-x-2">
-                        <FormLabel>Increase difficulty level</FormLabel>
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
+                <div>
+                  <FormLabel className="block mb-2">Number of Cards to Generate</FormLabel>
+                  <div className="flex items-center space-x-4">
+                    <Slider
+                      min={5}
+                      max={30}
+                      step={5}
+                      value={[form.getValues("count")]}
+                      onValueChange={(value) => form.setValue("count", value[0])}
+                      className="flex-1"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300 w-8">
+                      {form.getValues("count")}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Advanced Options</h3>
+                  <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-md space-y-4">
+                    <div className="flex items-center justify-between space-x-2">
+                      <FormLabel>Generate image hints when possible</FormLabel>
+                      <Checkbox
+                        checked={form.getValues("includeImages")}
+                        onCheckedChange={(checked) => 
+                          form.setValue("includeImages", checked === true)
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between space-x-2">
+                      <FormLabel>Increase difficulty level</FormLabel>
+                      <Checkbox
+                        checked={form.getValues("increaseDifficulty")}
+                        onCheckedChange={(checked) => 
+                          form.setValue("increaseDifficulty", checked === true)
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Button 
+                    type="button" 
+                    disabled={isSubmitting || !uploadedFile || !form.getValues("deckId")}
+                    onClick={() => handleFileUpload(form.getValues("deckId"))}
+                  >
+                    {isUploading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                  />
+                    Upload and Generate Flashcards
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => navigate("/")}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </Button>
                 </div>
               </div>
+            </TabsContent>
+          </Tabs>
 
-              <div className="flex items-center justify-between">
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Generate Flashcards
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => navigate("/")}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-              </div>
-
-              {successMessage && (
-                <Alert className="mt-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200">
-                  <CheckCircle2 className="h-4 w-4" />
-                  <AlertTitle>Success!</AlertTitle>
-                  <AlertDescription>
-                    {successMessage} They've been added to your deck.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </form>
-          </Form>
+          {successMessage && (
+            <Alert className="mt-4 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>Success!</AlertTitle>
+              <AlertDescription>
+                {successMessage} They've been added to your deck.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
     </div>
