@@ -30,7 +30,8 @@ class CardEngine {
       let systemPrompt = `You are an expert educational content creator specializing in creating high-quality flashcards for learning.
 Given the content provided, create ${count} flashcards with clear questions on the front and comprehensive answers on the back.
 Make the flashcards ${difficultyLevel} difficulty level, focusing on the most important concepts.
-Format each flashcard as a JSON object in an array with 'front' and 'back' properties.`;
+The output MUST be a valid JSON object with a single key 'flashcards' containing an array of flashcard objects.
+Each flashcard object MUST have exactly two keys: 'front' for the question and 'back' for the answer.`;
 
       // Add instruction based on difficulty
       if (options.increaseDifficulty) {
@@ -52,7 +53,10 @@ For increased difficulty:
           },
           {
             role: "user",
-            content: `Please create ${count} flashcards from the following content. Return ONLY a JSON array of flashcards, each with 'front' and 'back' properties:\n\n${content}`
+            content: `Please create ${count} flashcards from the following content. Your response MUST be a JSON object with this exact structure: {"flashcards": [{"front": "question text", "back": "answer text"}, ...]}
+
+Content to analyze:
+${content}`
           }
         ],
         response_format: { type: "json_object" },
@@ -65,19 +69,37 @@ For increased difficulty:
         throw new Error("No content returned from OpenAI");
       }
 
+      console.log("OpenAI response:", responseText);
+
       // Parse the JSON response
       const parsedResponse = JSON.parse(responseText);
       
-      if (!parsedResponse.flashcards || !Array.isArray(parsedResponse.flashcards)) {
-        throw new Error("Invalid response format from OpenAI");
+      // Handle different possible response structures
+      let flashcards = [];
+      if (parsedResponse.flashcards && Array.isArray(parsedResponse.flashcards)) {
+        flashcards = parsedResponse.flashcards;
+      } else if (Array.isArray(parsedResponse)) {
+        flashcards = parsedResponse;
+      } else {
+        throw new Error("Invalid response format from OpenAI. Expected flashcards array.");
+      }
+
+      // Validate flashcards
+      if (flashcards.length === 0) {
+        throw new Error("No flashcards generated from OpenAI");
       }
 
       // Map the flashcards to the InsertCard format
-      return parsedResponse.flashcards.map((card: any) => ({
-        deckId,
-        front: card.front,
-        back: card.back
-      }));
+      return flashcards.map((card: any) => {
+        if (!card.front || !card.back) {
+          throw new Error("Invalid flashcard format. Missing front or back property.");
+        }
+        return {
+          deckId,
+          front: card.front,
+          back: card.back
+        };
+      });
     } catch (error) {
       console.error("Error generating flashcards:", error);
       throw new Error(`Failed to generate flashcards: ${error.message}`);
