@@ -1,14 +1,19 @@
 import { Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DeckCard } from "@/components/flashcard/DeckCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DeckWithStats } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function DecksPage() {
   const { data: decks, isLoading, error } = useQuery<DeckWithStats[]>({
     queryKey: ["/api/decks"],
   });
+
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Grid of deck skeletons for loading state
   const DeckSkeletons = () => (
@@ -39,6 +44,39 @@ export default function DecksPage() {
     </div>
   );
 
+  // Delete deck mutation
+  const deleteDeckMutation = useMutation({
+    mutationFn: async (deckId: string) => {
+      const response = await apiRequest("DELETE", `/api/decks/${deckId}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to delete deck");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+      toast({
+        title: "Deck deleted",
+        description: "The deck has been successfully deleted.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Error deleting deck",
+        description: error.message,
+      });
+    },
+  });
+
+  // Handle delete click
+  const handleDeleteDeck = (deckId: string) => {
+    if (confirm("Are you sure you want to delete this deck? This action cannot be undone.")) {
+      deleteDeckMutation.mutate(deckId);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
       <div className="flex justify-between items-center mb-6">
@@ -62,7 +100,7 @@ export default function DecksPage() {
       ) : decks && decks.length > 0 ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {decks.map((deck) => (
-            <DeckCard key={deck.id} deck={deck} />
+            <DeckCard key={deck.id} deck={deck} onDelete={handleDeleteDeck} />
           ))}
         </div>
       ) : (

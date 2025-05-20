@@ -13,7 +13,8 @@ import type { Card, DeckWithStats } from "@shared/schema";
 
 export default function ReviewPage() {
   const [match, params] = useRoute("/review/:deckId");
-  const deckId = match ? parseInt(params.deckId) : null;
+  const deckId: string | null = match ? params.deckId : null;
+  console.log("ReviewPage - Captured deckId:", deckId);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
@@ -26,23 +27,40 @@ export default function ReviewPage() {
     isLoading: isDeckLoading,
     error: deckError
   } = useQuery<DeckWithStats>({
-    queryKey: deckId ? [`/api/decks/${deckId}`] : null,
+    queryKey: deckId ? ['/api/decks', deckId] : [],
     enabled: !!deckId,
   });
 
   // Fetch cards due for review
   const { 
     data: dueCards,
-    isLoading: isCardsLoading,
+    isLoading: isLoadingCards,
     error: cardsError,
     refetch: refetchDueCards
   } = useQuery<Card[]>({
-    queryKey: deckId ? [`/api/decks/${deckId}/due-cards`] : ["/api/decks/due-cards"],
+    queryKey: deckId ? ['/api/decks', deckId, 'due-cards'] : [],
+    enabled: !!deckId,
   });
+
+  // Fetch all cards for the deck
+  const { 
+    data: allCards,
+    isLoading: isAllCardsLoading,
+    error: allCardsError
+  } = useQuery<Card[]>({
+    queryKey: deckId ? ['/api/decks', deckId, 'cards'] : [], // Use the /api/decks/:deckId/cards endpoint
+    enabled: !!deckId, // Only fetch if deckId is available
+  });
+
+  useEffect(() => {
+    if (allCards) {
+      console.log("All cards for the deck:", allCards);
+    }
+  }, [allCards]);
 
   // Handle card review submission
   const submitReviewMutation = useMutation({
-    mutationFn: async ({ cardId, rating }: { cardId: number; rating: number }) => {
+    mutationFn: async ({ cardId, rating }: { cardId: string; rating: number }) => {
       const response = await apiRequest("POST", "/api/reviews", { cardId, rating });
       return response.json();
     },
@@ -50,13 +68,12 @@ export default function ReviewPage() {
       // Go to next card
       setCurrentCardIndex(prev => prev + 1);
       
-      // Invalidate queries to update card status
-      if (deckId) {
-        queryClient.invalidateQueries({ queryKey: [`/api/decks/${deckId}`] });
-        queryClient.invalidateQueries({ queryKey: [`/api/decks/${deckId}/due-cards`] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["/api/decks/due-cards"] });
-      }
+      // Invalidate all relevant queries to update card status and deck stats
+      queryClient.invalidateQueries({ queryKey: ['/api/decks', deckId, 'due-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/decks', deckId, 'cards'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/decks', deckId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
     },
     onError: (error) => {
       toast({
@@ -90,7 +107,7 @@ export default function ReviewPage() {
   };
 
   // Loading state
-  if (isDeckLoading || isCardsLoading) {
+  if (isDeckLoading || isLoadingCards) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20 md:pb-8">
         <div className="md:flex md:items-center md:justify-between mb-6">
@@ -146,7 +163,7 @@ export default function ReviewPage() {
             No cards due for review!
           </h3>
           <p className="text-gray-500 dark:text-gray-400 mb-6">
-            {deck ? `All cards in "${deck.name}" are up to date` : "You're all caught up with your reviews"}
+            {deck ? `All cards in \"${deck.name}\" are up to date` : "You're all caught up with your reviews"}
           </p>
           <Link href="/">
             <Button>Back to Decks</Button>

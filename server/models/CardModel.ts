@@ -4,6 +4,7 @@ export interface ICard extends Document {
   deckId: mongoose.Types.ObjectId;
   front: string;
   back: string;
+  createdAt: Date;
   lastReviewed: Date | null;
   nextReview: Date | null;
   ease: number;
@@ -24,6 +25,10 @@ const CardSchema: Schema = new Schema({
   back: { 
     type: String, 
     required: true 
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
   },
   lastReviewed: { 
     type: Date, 

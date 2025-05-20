@@ -92,6 +92,7 @@ export default function CreatePage() {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log("Generated cards:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
       setSuccessMessage(`Successfully generated ${data.count} flashcards!`);
       
@@ -159,17 +160,20 @@ export default function CreatePage() {
 
   const onSubmit = async (values: CreateFormValues) => {
     try {
-      let deckId = parseInt(values.deckId);
+      let finalDeckId: string;
 
       // If creating a new deck, create it first
       if (values.deckId === "new" && values.newDeckName) {
         const newDeck = await createDeckMutation.mutateAsync(values.newDeckName);
-        deckId = newDeck.id;
+        finalDeckId = newDeck.id;
+        form.setValue("deckId", newDeck.id);
+      } else {
+        finalDeckId = values.deckId;
       }
 
       // Generate cards
       await generateCardsMutation.mutateAsync({
-        deckId,
+        deckId: finalDeckId,
         content: values.content,
         count: values.count,
         includeImages: values.includeImages,
@@ -193,7 +197,7 @@ export default function CreatePage() {
     }
 
     try {
-      let deckId = parseInt(selectedDeckId);
+      let deckId: string;
 
       // If creating a new deck, create it first
       if (selectedDeckId === "new") {
@@ -209,11 +213,13 @@ export default function CreatePage() {
           });
           return;
         }
+      } else {
+        deckId = selectedDeckId;
       }
 
       const formData = new FormData();
       formData.append('document', uploadedFile);
-      formData.append('deckId', deckId.toString());
+      formData.append('deckId', deckId);
       formData.append('count', form.getValues("count").toString());
       formData.append('includeImages', form.getValues("includeImages").toString());
       formData.append('increaseDifficulty', form.getValues("increaseDifficulty").toString());

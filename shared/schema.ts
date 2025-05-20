@@ -41,7 +41,7 @@ export const insertCardSchema = createInsertSchema(cards).omit({
 // Card review model
 export const reviews = pgTable("reviews", {
   id: serial("id").primaryKey(),
-  cardId: integer("card_id").notNull(),
+  cardId: text("card_id").notNull(),
   rating: integer("rating").notNull(), // 1-4 rating (Again, Hard, Good, Easy)
   reviewedAt: timestamp("reviewed_at").defaultNow().notNull(),
 });
@@ -53,7 +53,7 @@ export const insertReviewSchema = createInsertSchema(reviews).omit({
 
 // AI generation request schema
 export const generateCardsSchema = z.object({
-  deckId: z.number(),
+  deckId: z.string(),
   content: z.string().min(1, "Content is required for card generation"),
   count: z.number().int().min(1).max(30).default(10),
   includeImages: z.boolean().default(false),
@@ -61,21 +61,41 @@ export const generateCardsSchema = z.object({
 });
 
 // Export types
-export type Deck = typeof decks.$inferSelect;
+export type Deck = {
+  id: string;
+  name: string;
+  createdAt: Date;
+};
 export type InsertDeck = z.infer<typeof insertDeckSchema>;
 
-export type Card = typeof cards.$inferSelect;
+export type Card = {
+  id: string;
+  deckId: string;
+  front: string;
+  back: string;
+  createdAt: Date;
+  lastReviewed: Date | null;
+  nextReview: Date | null;
+  ease: number;
+  interval: number;
+  repetitions: number;
+};
 export type InsertCard = z.infer<typeof insertCardSchema>;
 
-export type Review = typeof reviews.$inferSelect;
+export type Review = {
+  id: string;
+  cardId: string;
+  rating: number;
+  reviewedAt: Date;
+};
 export type InsertReview = z.infer<typeof insertReviewSchema>;
 
 export type GenerateCardsRequest = z.infer<typeof generateCardsSchema>;
 
 // Export additional schemas
 export const cardWithDeckSchema = z.object({
-  id: z.number(),
-  deckId: z.number(),
+  id: z.string(),
+  deckId: z.string(),
   deckName: z.string(),
   front: z.string(),
   back: z.string(),
@@ -89,7 +109,7 @@ export const cardWithDeckSchema = z.object({
 export type CardWithDeck = z.infer<typeof cardWithDeckSchema>;
 
 export const deckWithStatsSchema = z.object({
-  id: z.number(),
+  id: z.string(),
   name: z.string(),
   createdAt: z.string(),
   totalCards: z.number(),

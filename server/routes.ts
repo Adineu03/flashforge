@@ -12,6 +12,7 @@ import {
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import mongoose from "mongoose";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Error handling middleware
@@ -29,6 +30,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   };
 
+  // Card routes
+  app.get("/api/decks/:deckId/cards", async (req: Request, res: Response) => {
+    try {
+      console.log("Reached /api/decks/:deckId/cards route handler.");
+      console.log("Deck ID received in /api/decks/:deckId/cards:", req.params.deckId);
+      const deckId = req.params.deckId;
+      const cards = await storage.getCards(deckId);
+      res.json(cards);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  app.get("/api/decks/:deckId/due-cards", async (req: Request, res: Response) => {
+    try {
+      const deckId = req.params.deckId;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const cards = await storage.getDueCards(deckId, limit);
+      res.json(cards);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
   // Deck routes
   app.get("/api/decks", async (req: Request, res: Response) => {
     try {
@@ -41,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/decks/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const deck = await storage.getDeckWithStats(id);
       
       if (!deck) {
@@ -64,31 +89,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Card routes
-  app.get("/api/decks/:deckId/cards", async (req: Request, res: Response) => {
-    try {
-      const deckId = parseInt(req.params.deckId);
-      const cards = await storage.getCards(deckId);
-      res.json(cards);
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.get("/api/decks/:deckId/due-cards", async (req: Request, res: Response) => {
-    try {
-      const deckId = parseInt(req.params.deckId);
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const cards = await storage.getDueCards(deckId, limit);
-      res.json(cards);
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
   app.get("/api/cards/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = req.params.id;
       const card = await storage.getCardWithDeck(id);
       
       if (!card) {
@@ -134,6 +137,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const generateParams = generateCardsSchema.parse(req.body);
       
+      // Add console.log to debug
+      console.log("Generating cards with deck ID:", generateParams.deckId);
+
+      // --- Start Debugging Block ---
+      console.log("Attempting to find deck with ID before getDeck:", generateParams.deckId);
+      try {
+          const testDeck = await storage.getDeck(generateParams.deckId);
+          if (testDeck) {
+              console.log("Successfully found deck before getDeck call in generate-cards:", testDeck.id, testDeck.name);
+          } else {
+              console.log("Did NOT find deck before getDeck call in generate-cards with ID:", generateParams.deckId);
+          }
+          const allDecks = await storage.getDecks();
+          console.log("All decks after attempt to find specific deck:", allDecks.map(d => ({id: d.id, name: d.name})));
+      } catch (debugError) {
+          console.error("Error during pre-getDeck debugging in generate-cards:", debugError);
+      }
+      // --- End Debugging Block ---
+
       // Check if deck exists
       const deck = await storage.getDeck(generateParams.deckId);
       if (!deck) {
@@ -176,16 +198,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const filePath = req.file.path;
-      const deckIdParam = req.body.deckId;
+      const deckIdParam = req.body.deckId as string;
       const countParam = req.body.count || 10;
       const includeImagesParam = req.body.includeImages === 'true';
       const increaseDifficultyParam = req.body.increaseDifficulty === 'true';
       
-      // Check if deckId is valid
-      const deckId = parseInt(deckIdParam);
-      if (isNaN(deckId)) {
+      // Check if deckId is valid ObjectId string
+      const deckId = deckIdParam;
+      if (!mongoose.Types.ObjectId.isValid(deckId)) {
         await documentParser.cleanupFile(filePath);
-        return res.status(400).json({ message: "Invalid deck ID" });
+        return res.status(400).json({ message: "Invalid deck ID format" });
       }
       
       // Check if deck exists
@@ -209,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cardData = await cardEngine.generateCards(
         deckId,
         content,
-        parseInt(countParam),
+        parseInt(countParam as string),
         {
           includeImages: includeImagesParam,
           increaseDifficulty: increaseDifficultyParam
@@ -253,6 +275,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         decks
       });
     } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  // DELETE route to delete a deck by ID
+  app.delete("/api/decks/:deckId", async (req: Request, res: Response) => {
+    try {
+      const deckId = req.params.deckId;
+      console.log(`Attempting to delete deck with ID: ${deckId}`);
+      // Optional: Add validation for deckId format here if needed, though deleteDeck handles CastError
+
+      const success = await storage.deleteDeck(deckId);
+
+      if (success) {
+        console.log(`Successfully deleted deck with ID: ${deckId}`);
+        res.status(200).json({ message: "Deck deleted successfully" });
+      } else {
+        console.warn(`Deck with ID ${deckId} not found for deletion or deletion failed.`);
+        // It might be more accurate to check if it existed before attempting deletion for a true 404
+        // For simplicity, returning 404 if deleteCount is not 1 (not found or not deleted)
+        res.status(404).json({ message: "Deck not found or could not be deleted" });
+      }
+    } catch (err) {
+      console.error("Error in DELETE /api/decks/:deckId route:", err);
       handleError(err, res);
     }
   });

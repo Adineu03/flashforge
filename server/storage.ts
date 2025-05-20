@@ -6,40 +6,34 @@ import {
 export interface IStorage {
   // Deck operations
   getDecks(): Promise<Deck[]>;
-  getDeck(id: number): Promise<Deck | undefined>;
+  getDeck(id: string): Promise<Deck | undefined>;
   createDeck(deck: InsertDeck): Promise<Deck>;
   
   // Card operations
-  getCards(deckId: number): Promise<Card[]>;
-  getCard(id: number): Promise<Card | undefined>;
-  getDueCards(deckId: number, limit?: number): Promise<Card[]>;
+  getCards(deckId: string): Promise<Card[]>;
+  getCard(id: string): Promise<Card | undefined>;
+  getDueCards(deckId: string, limit?: number): Promise<Card[]>;
   createCard(card: InsertCard): Promise<Card>;
-  updateCard(id: number, card: Partial<Card>): Promise<Card>;
+  updateCard(id: string, card: Partial<Card>): Promise<Card>;
   
   // Review operations
   createReview(review: InsertReview): Promise<Review>;
   
   // Stats and advanced operations
-  getDeckWithStats(id: number): Promise<DeckWithStats | undefined>;
+  getDeckWithStats(id: string): Promise<DeckWithStats | undefined>;
   getDecksWithStats(): Promise<DeckWithStats[]>;
-  getCardWithDeck(id: number): Promise<CardWithDeck | undefined>;
+  getCardWithDeck(id: string): Promise<CardWithDeck | undefined>;
 }
 
 export class MemStorage implements IStorage {
-  private decks: Map<number, Deck>;
-  private cards: Map<number, Card>;
-  private reviews: Map<number, Review>;
-  private deckCurrentId: number;
-  private cardCurrentId: number;
-  private reviewCurrentId: number;
+  private decks: Map<string, Deck>;
+  private cards: Map<string, Card>;
+  private reviews: Map<string, Review>;
 
   constructor() {
     this.decks = new Map();
     this.cards = new Map();
     this.reviews = new Map();
-    this.deckCurrentId = 1;
-    this.cardCurrentId = 1;
-    this.reviewCurrentId = 1;
     
     // Add some initial data
     this.createDeck({ name: "JavaScript Fundamentals" });
@@ -47,17 +41,22 @@ export class MemStorage implements IStorage {
     this.createDeck({ name: "React Hooks" });
   }
 
+  // Helper to generate a simple unique string ID (for MemStorage only)
+  private generateId(): string {
+      return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }
+
   // Deck operations
   async getDecks(): Promise<Deck[]> {
     return Array.from(this.decks.values());
   }
 
-  async getDeck(id: number): Promise<Deck | undefined> {
+  async getDeck(id: string): Promise<Deck | undefined> {
     return this.decks.get(id);
   }
 
   async createDeck(deck: InsertDeck): Promise<Deck> {
-    const id = this.deckCurrentId++;
+    const id = this.generateId();
     const now = new Date();
     const newDeck: Deck = { 
       id, 
@@ -69,15 +68,15 @@ export class MemStorage implements IStorage {
   }
 
   // Card operations
-  async getCards(deckId: number): Promise<Card[]> {
+  async getCards(deckId: string): Promise<Card[]> {
     return Array.from(this.cards.values()).filter(card => card.deckId === deckId);
   }
 
-  async getCard(id: number): Promise<Card | undefined> {
+  async getCard(id: string): Promise<Card | undefined> {
     return this.cards.get(id);
   }
 
-  async getDueCards(deckId: number, limit?: number): Promise<Card[]> {
+  async getDueCards(deckId: string, limit?: number): Promise<Card[]> {
     const now = new Date();
     const dueCards = Array.from(this.cards.values())
       .filter(card => 
@@ -96,7 +95,7 @@ export class MemStorage implements IStorage {
   }
 
   async createCard(card: InsertCard): Promise<Card> {
-    const id = this.cardCurrentId++;
+    const id = this.generateId();
     const now = new Date();
     const newCard: Card = {
       id,
@@ -114,7 +113,7 @@ export class MemStorage implements IStorage {
     return newCard;
   }
 
-  async updateCard(id: number, cardUpdate: Partial<Card>): Promise<Card> {
+  async updateCard(id: string, cardUpdate: Partial<Card>): Promise<Card> {
     const card = this.cards.get(id);
     if (!card) {
       throw new Error(`Card with id ${id} not found`);
@@ -127,7 +126,7 @@ export class MemStorage implements IStorage {
 
   // Review operations
   async createReview(review: InsertReview): Promise<Review> {
-    const id = this.reviewCurrentId++;
+    const id = this.generateId();
     const now = new Date();
     const newReview: Review = {
       id,
@@ -176,7 +175,7 @@ export class MemStorage implements IStorage {
   }
 
   // Stats and advanced operations
-  async getDeckWithStats(id: number): Promise<DeckWithStats | undefined> {
+  async getDeckWithStats(id: string): Promise<DeckWithStats | undefined> {
     const deck = await this.getDeck(id);
     if (!deck) return undefined;
     
@@ -213,20 +212,40 @@ export class MemStorage implements IStorage {
   }
 
   async getDecksWithStats(): Promise<DeckWithStats[]> {
-    const decks = await this.getDecks();
-    const result: DeckWithStats[] = [];
+    // This implementation is less efficient for MemStorage, but matches the MongoStorage approach
+    // A more efficient MemStorage implementation would iterate through cards directly.
+    const allDecks = Array.from(this.decks.values());
     
-    for (const deck of decks) {
-      const deckWithStats = await this.getDeckWithStats(deck.id);
-      if (deckWithStats) {
-        result.push(deckWithStats);
-      }
+    const results: DeckWithStats[] = [];
+    for (const deck of allDecks) {
+        // Note: For simplicity in MemStorage, calculate stats here instead of a complex aggregation
+        const deckCards = Array.from(this.cards.values()).filter(card => card.deckId === deck.id);
+        const now = new Date();
+        
+        const totalCards = deckCards.length;
+        const masteredCards = deckCards.filter(card => card.interval >= 14).length;
+        const dueToday = deckCards.filter(card => !card.nextReview || new Date(card.nextReview) <= now).length;
+        const lastStudied = deckCards.reduce((latest: Date | null, card) => {
+            if (card.lastReviewed && (!latest || new Date(card.lastReviewed) > latest)) {
+                return new Date(card.lastReviewed);
+            }
+            return latest;
+        }, null);
+        
+        results.push({
+            id: deck.id,
+            name: deck.name,
+            createdAt: deck.createdAt.toISOString(),
+            totalCards,
+            masteredCards,
+            dueToday,
+            lastStudied: lastStudied ? lastStudied.toISOString() : null
+        });
     }
-    
-    return result;
+    return results;
   }
 
-  async getCardWithDeck(id: number): Promise<CardWithDeck | undefined> {
+  async getCardWithDeck(id: string): Promise<CardWithDeck | undefined> {
     const card = await this.getCard(id);
     if (!card) return undefined;
     

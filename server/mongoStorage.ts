@@ -9,44 +9,34 @@ import ReviewModel from "./models/ReviewModel";
 import mongoose from "mongoose";
 
 export class MongoStorage implements IStorage {
-  // Helper function to convert MongoDB ObjectId to number for client compatibility
-  private objectIdToNumber(id: mongoose.Types.ObjectId): number {
-    // Use the timestamp portion of ObjectId as a numeric identifier
-    // This is not guaranteed to be unique if many objects are created in the same second
-    // but works for our use case as a simple conversion mechanism
-    return parseInt(id.toString().substring(0, 8), 16);
-  }
-
-  // Helper function to convert number to MongoDB ObjectId
-  private numberToObjectId(id: number): mongoose.Types.ObjectId {
-    // Create a hex representation and pad to 24 chars
-    const hexId = id.toString(16).padStart(24, '0');
-    return new mongoose.Types.ObjectId(hexId);
-  }
-
   // Deck operations
   async getDecks(): Promise<Deck[]> {
     const decks = await DeckModel.find().sort({ createdAt: -1 });
     return decks.map(deck => ({
-      id: this.objectIdToNumber(deck._id),
+      id: deck._id.toString(), // Use ObjectId as string
       name: deck.name,
       createdAt: deck.createdAt
     }));
   }
 
-  async getDeck(id: number): Promise<Deck | undefined> {
+  async getDeck(id: string): Promise<Deck | undefined> {
     try {
-      const objectId = this.numberToObjectId(id);
+      const objectId = new mongoose.Types.ObjectId(id); // Convert string ID to ObjectId
       const deck = await DeckModel.findById(objectId);
       if (!deck) return undefined;
       
       return {
-        id: this.objectIdToNumber(deck._id),
+        id: deck._id.toString(), // Use ObjectId as string
         name: deck.name,
         createdAt: deck.createdAt
       };
     } catch (error) {
       console.error("Error getting deck:", error);
+      // Handle invalid ObjectId format specifically
+      if (error instanceof mongoose.Error.CastError) {
+          console.error("Invalid Deck ID format:", id);
+          return undefined; // Or throw a more specific error if preferred
+      }
       return undefined;
     }
   }
@@ -58,22 +48,23 @@ export class MongoStorage implements IStorage {
     });
     
     return {
-      id: this.objectIdToNumber(newDeck._id),
+      id: newDeck._id.toString(), // Use ObjectId as string
       name: newDeck.name,
       createdAt: newDeck.createdAt
     };
   }
 
   // Card operations
-  async getCards(deckId: number): Promise<Card[]> {
-    const objectId = this.numberToObjectId(deckId);
+  async getCards(deckId: string): Promise<Card[]> {
+    const objectId = new mongoose.Types.ObjectId(deckId);
     const cards = await CardModel.find({ deckId: objectId });
     
     return cards.map(card => ({
-      id: this.objectIdToNumber(card._id),
-      deckId: this.objectIdToNumber(card.deckId as unknown as mongoose.Types.ObjectId),
+      id: card._id.toString(),
+      deckId: card.deckId.toString(),
       front: card.front,
       back: card.back,
+      createdAt: card.createdAt,
       lastReviewed: card.lastReviewed,
       nextReview: card.nextReview,
       ease: card.ease,
@@ -82,17 +73,18 @@ export class MongoStorage implements IStorage {
     }));
   }
 
-  async getCard(id: number): Promise<Card | undefined> {
+  async getCard(id: string): Promise<Card | undefined> {
     try {
-      const objectId = this.numberToObjectId(id);
+      const objectId = new mongoose.Types.ObjectId(id);
       const card = await CardModel.findById(objectId);
       if (!card) return undefined;
       
       return {
-        id: this.objectIdToNumber(card._id),
-        deckId: this.objectIdToNumber(card.deckId as unknown as mongoose.Types.ObjectId),
+        id: card._id.toString(),
+        deckId: card.deckId.toString(),
         front: card.front,
         back: card.back,
+        createdAt: card.createdAt,
         lastReviewed: card.lastReviewed,
         nextReview: card.nextReview,
         ease: card.ease,
@@ -105,8 +97,8 @@ export class MongoStorage implements IStorage {
     }
   }
 
-  async getDueCards(deckId: number, limit?: number): Promise<Card[]> {
-    const objectId = this.numberToObjectId(deckId);
+  async getDueCards(deckId: string, limit?: number): Promise<Card[]> {
+    const objectId = new mongoose.Types.ObjectId(deckId);
     const now = new Date();
     
     // Find cards that are due (nextReview is null or before now)
@@ -124,10 +116,11 @@ export class MongoStorage implements IStorage {
     const cards = await cardsQuery.exec();
     
     return cards.map(card => ({
-      id: this.objectIdToNumber(card._id),
-      deckId: this.objectIdToNumber(card.deckId as unknown as mongoose.Types.ObjectId),
+      id: card._id.toString(),
+      deckId: card.deckId.toString(),
       front: card.front,
       back: card.back,
+      createdAt: card.createdAt,
       lastReviewed: card.lastReviewed,
       nextReview: card.nextReview,
       ease: card.ease,
@@ -137,12 +130,13 @@ export class MongoStorage implements IStorage {
   }
 
   async createCard(card: InsertCard): Promise<Card> {
-    const objectId = this.numberToObjectId(card.deckId);
+    const objectId = new mongoose.Types.ObjectId(card.deckId);
     
     const newCard = await CardModel.create({
       deckId: objectId,
       front: card.front,
       back: card.back,
+      createdAt: new Date(),
       lastReviewed: null,
       nextReview: null,
       ease: 250,
@@ -151,10 +145,11 @@ export class MongoStorage implements IStorage {
     });
     
     return {
-      id: this.objectIdToNumber(newCard._id),
+      id: newCard._id.toString(),
       deckId: card.deckId,
       front: newCard.front,
       back: newCard.back,
+      createdAt: newCard.createdAt,
       lastReviewed: newCard.lastReviewed,
       nextReview: newCard.nextReview,
       ease: newCard.ease,
@@ -163,13 +158,13 @@ export class MongoStorage implements IStorage {
     };
   }
 
-  async updateCard(id: number, cardUpdate: Partial<Card>): Promise<Card> {
-    const objectId = this.numberToObjectId(id);
+  async updateCard(id: string, cardUpdate: Partial<Card>): Promise<Card> {
+    const objectId = new mongoose.Types.ObjectId(id);
     
     // Convert deckId if it's part of the update
     const updateData: any = { ...cardUpdate };
     if (updateData.deckId) {
-      updateData.deckId = this.numberToObjectId(updateData.deckId);
+      updateData.deckId = new mongoose.Types.ObjectId(updateData.deckId);
     }
     
     const updatedCard = await CardModel.findByIdAndUpdate(
@@ -183,10 +178,11 @@ export class MongoStorage implements IStorage {
     }
     
     return {
-      id: this.objectIdToNumber(updatedCard._id),
-      deckId: this.objectIdToNumber(updatedCard.deckId as unknown as mongoose.Types.ObjectId),
+      id: updatedCard._id.toString(),
+      deckId: updatedCard.deckId.toString(),
       front: updatedCard.front,
       back: updatedCard.back,
+      createdAt: updatedCard.createdAt,
       lastReviewed: updatedCard.lastReviewed,
       nextReview: updatedCard.nextReview,
       ease: updatedCard.ease,
@@ -198,7 +194,7 @@ export class MongoStorage implements IStorage {
   // Review operations
   async createReview(review: InsertReview): Promise<Review> {
     // Get the card
-    const cardId = this.numberToObjectId(review.cardId);
+    const cardId = new mongoose.Types.ObjectId(review.cardId);
     const card = await CardModel.findById(cardId);
     if (!card) {
       throw new Error(`Card with id ${review.cardId} not found`);
@@ -247,7 +243,7 @@ export class MongoStorage implements IStorage {
     });
     
     return {
-      id: this.objectIdToNumber(newReview._id),
+      id: newReview._id.toString(),
       cardId: review.cardId,
       rating: newReview.rating,
       reviewedAt: newReview.reviewedAt
@@ -255,76 +251,90 @@ export class MongoStorage implements IStorage {
   }
 
   // Stats and advanced operations
-  async getDeckWithStats(id: number): Promise<DeckWithStats | undefined> {
+  async getDeckWithStats(id: string): Promise<DeckWithStats | undefined> {
     try {
-      const objectId = this.numberToObjectId(id);
-      const deck = await DeckModel.findById(objectId);
+      const objectId = new mongoose.Types.ObjectId(id); // Convert string ID to ObjectId
+      // Aggregate to get deck with stats - update aggregation stages to match string IDs
+      const result = await DeckModel.aggregate([
+          { $match: { _id: objectId } },
+          { $lookup: {
+              from: 'cards',
+              localField: '_id',
+              foreignField: 'deckId',
+              as: 'cards'
+          }},
+          { $addFields: { // Add this stage for debugging
+              cardRepetitions: { $map: { input: '$cards', as: 'card', in: '$$card.repetitions' } }
+          }},
+          { $addFields: {
+              totalCards: { $size: '$cards' },
+              masteredCards: { $size: { $filter: { input: '$cards', as: 'card', cond: { $gte: ['$$card.repetitions', 3] } } } }, // Assuming mastered after 3 repetitions
+              dueToday: { $size: { $filter: { input: '$cards', as: 'card', cond: { $lte: ['$$card.nextReview', new Date()] } } } },
+              lastStudied: { $max: '$cards.lastReviewed' }
+          }},
+          { $project: {
+              _id: 0,
+              id: { $toString: '$_id' }, // Convert ObjectId to string for output
+              name: 1,
+              createdAt: 1,
+              totalCards: 1,
+              masteredCards: 1,
+              dueToday: 1,
+              lastStudied: 1
+          }}
+      ]);
+
+      const deck = result[0];
+
       if (!deck) return undefined;
       
-      const now = new Date();
-      
-      // Get all cards for this deck
-      const deckCards = await CardModel.find({ deckId: objectId });
-      
-      // Calculate stats
-      const totalCards = deckCards.length;
-      
-      // A card is considered "mastered" if its interval is at least 7 days OR
-      // if it has been reviewed with a rating of 3 or 4 at least once
-      const masteredCards = deckCards.filter(card => {
-        // Check if interval is at least 7 days
-        if (card.interval >= 7) return true;
-        
-        // Check if card has been reviewed with good/easy rating
-        if (card.lastReviewed && card.ease >= 250) return true;
-        
-        return false;
-      }).length;
-      
-      const dueToday = deckCards.filter(card => 
-        !card.nextReview || card.nextReview <= now
-      ).length;
-      
-      // Find the last studied date
-      let lastStudied: Date | null = null;
-      for (const card of deckCards) {
-        if (card.lastReviewed && (!lastStudied || card.lastReviewed > lastStudied)) {
-          lastStudied = card.lastReviewed;
-        }
-      }
-      
-      return {
-        id: this.objectIdToNumber(deck._id),
-        name: deck.name,
-        createdAt: deck.createdAt.toISOString(),
-        totalCards,
-        masteredCards,
-        dueToday,
-        lastStudied: lastStudied ? lastStudied.toISOString() : null
-      };
+      return deck as DeckWithStats; // Cast the result to the updated type
     } catch (error) {
       console.error("Error getting deck with stats:", error);
+       // Handle invalid ObjectId format specifically
+      if (error instanceof mongoose.Error.CastError) {
+          console.error("Invalid Deck ID format:", id);
+          return undefined; // Or throw a more specific error if preferred
+      }
       return undefined;
     }
   }
 
   async getDecksWithStats(): Promise<DeckWithStats[]> {
-    const allDecks = await this.getDecks();
-    const result: DeckWithStats[] = [];
-    
-    for (const deck of allDecks) {
-      const deckWithStats = await this.getDeckWithStats(deck.id);
-      if (deckWithStats) {
-        result.push(deckWithStats);
-      }
-    }
-    
-    return result;
+    const results = await DeckModel.aggregate([
+        { $lookup: {
+            from: 'cards',
+            localField: '_id',
+            foreignField: 'deckId',
+            as: 'cards'
+        }},
+        { $addFields: { // Add this stage for debugging
+            cardRepetitions: { $map: { input: '$cards', as: 'card', in: '$$card.repetitions' } }
+        }},
+        { $addFields: {
+            totalCards: { $size: '$cards' },
+            masteredCards: { $size: { $filter: { input: '$cards', as: 'card', cond: { $gte: ['$$card.repetitions', 3] } } } }, // Assuming mastered after 3 repetitions
+            dueToday: { $size: { $filter: { input: '$cards', as: 'card', cond: { $lte: ['$$card.nextReview', new Date()] } } } },
+            lastStudied: { $max: '$cards.lastReviewed' }
+        }},
+        { $project: {
+            _id: 0,
+            id: { $toString: '$_id' },
+            name: 1,
+            createdAt: 1,
+            totalCards: 1,
+            masteredCards: 1,
+            dueToday: 1,
+            lastStudied: 1
+        }}
+    ]);
+
+    return results.map(result => result as DeckWithStats); // Cast results to the updated type
   }
 
-  async getCardWithDeck(id: number): Promise<CardWithDeck | undefined> {
+  async getCardWithDeck(id: string): Promise<CardWithDeck | undefined> {
     try {
-      const objectId = this.numberToObjectId(id);
+      const objectId = new mongoose.Types.ObjectId(id);
       const card = await CardModel.findById(objectId);
       if (!card) return undefined;
       
@@ -332,11 +342,12 @@ export class MongoStorage implements IStorage {
       if (!deck) return undefined;
       
       return {
-        id: this.objectIdToNumber(card._id),
-        deckId: this.objectIdToNumber(card.deckId as unknown as mongoose.Types.ObjectId),
+        id: card._id.toString(),
+        deckId: card.deckId.toString(),
         deckName: deck.name,
         front: card.front,
         back: card.back,
+        createdAt: card.createdAt,
         lastReviewed: card.lastReviewed ? card.lastReviewed.toISOString() : null,
         nextReview: card.nextReview ? card.nextReview.toISOString() : null,
         ease: card.ease,
@@ -346,6 +357,26 @@ export class MongoStorage implements IStorage {
     } catch (error) {
       console.error("Error getting card with deck:", error);
       return undefined;
+    }
+  }
+
+  // Delete deck and associated cards
+  async deleteDeck(id: string): Promise<boolean> {
+    try {
+      const objectId = new mongoose.Types.ObjectId(id);
+      // Delete associated cards first
+      await CardModel.deleteMany({ deckId: objectId });
+      // Then delete the deck
+      const result = await DeckModel.deleteOne({ _id: objectId });
+      return result.deletedCount === 1;
+    } catch (error) {
+      console.error("Error deleting deck:", error);
+      // Handle invalid ObjectId format specifically
+      if (error instanceof mongoose.Error.CastError) {
+          console.error("Invalid Deck ID format for deletion:", id);
+          return false; // Or throw a more specific error if preferred
+      }
+      throw error; // Re-throw other errors
     }
   }
 }

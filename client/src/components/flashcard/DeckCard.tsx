@@ -3,9 +3,10 @@ import type { DeckWithStats } from "@shared/schema";
 
 interface DeckCardProps {
   deck: DeckWithStats;
+  onDelete: (id: string) => void;
 }
 
-export function DeckCard({ deck }: DeckCardProps) {
+export function DeckCard({ deck, onDelete }: DeckCardProps) {
   const masteryPercentage = deck.totalCards > 0 
     ? Math.round((deck.masteredCards / deck.totalCards) * 100) 
     : 0;
@@ -60,6 +61,13 @@ export function DeckCard({ deck }: DeckCardProps) {
           className="text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
         >
           Edit
+        </button>
+        <button 
+          type="button" 
+          className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-500 dark:hover:text-red-400 ml-auto"
+          onClick={() => onDelete(deck.id)}
+        >
+          Delete
         </button>
       </div>
     </div>
