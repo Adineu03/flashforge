@@ -157,8 +157,17 @@ export class DatabaseStorage implements IStorage {
     // Calculate stats
     const totalCards = deckCards.length;
     
-    // A card is considered "mastered" if its interval is at least 14 days
-    const masteredCards = deckCards.filter(card => (card.interval || 0) >= 14).length;
+    // A card is considered "mastered" if its interval is at least 7 days OR
+    // if it has been reviewed with a rating of 3 or 4 at least once
+    const masteredCards = deckCards.filter(card => {
+      // Check if interval is at least 7 days
+      if ((card.interval || 0) >= 7) return true;
+      
+      // Check if card has been reviewed with good/easy rating
+      if (card.lastReviewed && (card.ease || 0) >= 250) return true;
+      
+      return false;
+    }).length;
     
     const dueToday = deckCards.filter(card => 
       !card.nextReview || new Date(card.nextReview) <= now
