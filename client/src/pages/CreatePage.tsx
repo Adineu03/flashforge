@@ -424,7 +424,7 @@ export default function CreatePage() {
             <TabsContent value="file">
               <div className="space-y-6">
                 <div>
-                  <FormLabel className="block mb-2">Choose a Deck</FormLabel>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 block mb-2">Choose a Deck</label>
                   <Select onValueChange={handleDeckChange} defaultValue={form.getValues("deckId")}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select a deck" />
@@ -442,7 +442,7 @@ export default function CreatePage() {
 
                 {showNewDeckForm && (
                   <div>
-                    <FormLabel className="block mb-2">New Deck Name</FormLabel>
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 block mb-2">New Deck Name</label>
                     <Input 
                       placeholder="e.g. CSS Flexbox" 
                       value={form.getValues("newDeckName")}
@@ -452,7 +452,7 @@ export default function CreatePage() {
                 )}
 
                 <div>
-                  <FormLabel className="block mb-2">Upload Document</FormLabel>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 block mb-2">Upload Document</label>
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       {uploadedFile ? (
@@ -490,7 +490,7 @@ export default function CreatePage() {
                 </div>
 
                 <div>
-                  <FormLabel className="block mb-2">Number of Cards to Generate</FormLabel>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 block mb-2">Number of Cards to Generate</label>
                   <div className="flex items-center space-x-4">
                     <Slider
                       min={5}
